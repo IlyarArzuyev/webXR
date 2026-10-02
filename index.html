@@ -2,117 +2,166 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WebXR Image Tracking</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>AR.js Pattern Video</title>
+
+  <!-- A-Frame и AR.js -->
+  <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+
   <style>
-    body { margin: 0; overflow: hidden; background: #000; }
-    #ar-button {
-      position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-      padding: 14px 28px; font-size: 16px; font-weight: bold;
-      color: #fff; background: rgba(0,0,0,0.8); border: 1px solid #fff;
-      border-radius: 30px; cursor: pointer; z-index: 999;
+    /* Кнопка первого клика (разблокировка автоплея iOS) */
+    #start-btn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 99999;
+      padding: 16px 32px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 18px;
+      font-weight: bold;
+      color: #ffffff;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 30px;
+      cursor: pointer;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      transition: all 0.3s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #start-btn:active {
+      transform: translate(-50%, -50%) scale(0.95);
+      background: rgba(0, 0, 0, 0.5);
+    }
+
+    /* Кнопка перехода на внешний сайт */
+    #link-btn {
+      display: none;
+      position: absolute;
+      bottom: 35px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 99999;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 14px 28px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      color: #ffffff;
+      text-decoration: none;
+      white-space: nowrap;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #link-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
   </style>
-  <!-- Three.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-</head>
-<body>
-
-  <button id="ar-button">Запустить WebXR AR</button>
 
   <script>
-    let camera, scene, renderer;
-    let videoMesh, videoElement;
-    let xrRefSpace = null;
+    AFRAME.registerComponent('ar-video-handler', {
+      init: function () {
+        const marker = this.el;
+        const video = document.querySelector('#ar-video');
+        const startBtn = document.getElementById('start-btn');
+        const linkBtn = document.getElementById('link-btn');
 
-    // 1. Создаем скрытый элемент видео
-    videoElement = document.createElement('video');
-    videoElement.src = 'video.mp4';
-    videoElement.loop = true;
-    videoElement.crossOrigin = 'anonymous';
-    videoElement.playsInline = true;
+        // Активация видео при клике на запуск
+        startBtn.addEventListener('click', () => {
+          video.muted = false; // Снимаем заглушку звука
+          video.play().then(() => {
+            video.pause();
+            startBtn.style.display = 'none';
+            linkBtn.style.display = 'inline-flex';
+          }).catch(err => {
+            console.error("Ошибка инициализации аудио/видео:", err);
+            startBtn.style.display = 'none';
+            linkBtn.style.display = 'inline-flex';
+          });
+        });
 
-    async function initAR() {
-      // Подготовка Three.js сцены
-      scene = new THREE.Scene();
-      camera = new THREE.PerspectiveCamera();
+        // События обнаружения Pattern-маркера
+        marker.addEventListener('markerFound', () => {
+          video.play().catch(err => console.log("Ошибка воспроизведения:", err));
+        });
 
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.xr.enabled = true;
-      document.body.appendChild(renderer.domElement);
-
-      // Плоскость под видео (1080x1350 px -> пропорция 1 : 1.25)
-      const texture = new THREE.VideoTexture(videoElement);
-      const geometry = new THREE.PlaneGeometry(0.1, 0.125); // Размер в метрах (10см х 12.5см)
-      const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
-      videoMesh = new THREE.Mesh(geometry, material);
-      videoMesh.visible = false;
-      scene.add(videoMesh);
-
-      // Загрузка фото-мишени для ARCore
-      const imgBitmap = await fetchAndDecodeImage('./target.jpg');
-
-      // 2. Запрос WebXR сессии с функцией tracked-images
-      const session = await navigator.xr.requestSession('immersive-ar', {
-        requiredFeatures: ['tracked-images'],
-        trackedImages: [
-          {
-            image: imgBitmap,
-            widthInMeters: 0.1 // Точный физический размер распечатанного фото (10 см)
-          }
-        ]
-      });
-
-      renderer.xr.setSession(session);
-      xrRefSpace = await session.requestReferenceSpace('local');
-
-      videoElement.play();
-
-      // 3. Главный AR-цикл
-      session.requestAnimationFrame(onXRFrame);
-    }
-
-    function onXRFrame(time, frame) {
-      const session = frame.session;
-      session.requestAnimationFrame(onXRFrame);
-
-      // Получаем результаты распознавания картинок
-      const results = frame.getImageTrackingResults ? frame.getImageTrackingResults() : [];
-
-      for (const result of results) {
-        const pose = frame.getPose(result.imageSpace, xrRefSpace);
-        
-        if (pose) {
-          // Применяем точную матрицу трансформации из ARCore/ARKit
-          videoMesh.matrix.fromArray(pose.transform.matrix);
-          videoMesh.matrixAutoUpdate = false;
-          videoMesh.visible = true;
-
-          if (result.trackingState === 'tracked') {
-            // Маркер виден отчетливо
-          } else if (result.trackingState === 'emulated') {
-            // Маркер временно перекрыт, позиция прогнозируется гироскопом
-          }
-        }
-      }
-
-      renderer.render(scene, camera);
-    }
-
-    async function fetchAndDecodeImage(url) {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      return await createImageBitmap(blob);
-    }
-
-    document.getElementById('ar-button').addEventListener('click', () => {
-      if ('xr' in navigator) {
-        initAR().catch(err => alert('WebXR не поддерживается или заблокирован: ' + err.message));
-      } else {
-        alert('Ваш браузер не поддерживает WebXR API');
+        marker.addEventListener('markerLost', () => {
+          video.pause();
+        });
       }
     });
   </script>
+</head>
+
+<body style="margin: 0; overflow: hidden;">
+
+  <!-- Кнопка старта -->
+  <button id="start-btn">Нажмите, чтобы начать</button>
+
+  <!-- Кнопка перехода на квиз -->
+  <a id="link-btn" href="https://ilyararzuyev.github.io/Monke1year" target="_blank">
+    <span>Перейти на квиз</span>
+    <svg viewBox="0 0 24 24">
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+      <polyline points="15 3 21 3 21 9"></polyline>
+      <line x1="10" y1="14" x2="21" y2="3"></line>
+    </svg>
+  </a>
+
+  <a-scene
+    embedded
+    arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
+    vr-mode-ui="enabled: false">
+
+    <a-assets>
+      <video
+        id="ar-video"
+        src="video.mp4"
+        preload="auto"
+        loop="true"
+        crossorigin="anonymous"
+        playsinline
+        webkit-playsinline>
+      </video>
+    </a-assets>
+
+    <!-- Маркер AR.js (замените url на путь к вашему .patt файлу) -->
+    <a-marker type="pattern" url="./pattern-marker.patt" ar-video-handler>
+      <!-- Видео накладывается на маркер: поворот -90 по X кладёт его плашмя на карточку -->
+      <a-video
+        src="#ar-video"
+        position="0 0 0"
+        rotation="-90 0 0"
+        width="1.2"
+        height="1.5"
+        material="shader: flat; src: #ar-video;">
+      </a-video>
+    </a-marker>
+
+    <a-entity camera></a-entity>
+  </a-scene>
+
 </body>
 </html>
