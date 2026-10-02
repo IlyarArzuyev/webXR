@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>WebAR NFT Video</title>
 
-  <!-- Стабильная версия A-Frame 1.2.0 для NFT -->
+  <!-- Чистый A-Frame 1.2.0 -->
   <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-  <!-- AR.js с поддержкой NFT -->
-  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+  <!-- Заменяем сырой raw.githack на CDN jsDelivr для AR.js NFT -->
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@master/aframe/build/aframe-ar-nft.js"></script>
 
   <style>
     body {
@@ -17,7 +17,6 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    /* Оверлей загрузки NFT маркера */
     .arjs-loader {
       height: 100%;
       width: 100%;
@@ -33,7 +32,6 @@
       font-size: 1.2rem;
     }
 
-    /* Кнопка первого клика (разблокировка автоплея iOS/Android) */
     #start-btn {
       display: none;
       position: absolute;
@@ -51,10 +49,8 @@
       border: 1px solid rgba(255, 255, 255, 0.3);
       border-radius: 30px;
       cursor: pointer;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
     }
 
-    /* Кнопка перехода на квиз */
     #link-btn {
       display: none;
       position: absolute;
@@ -62,9 +58,6 @@
       left: 50%;
       transform: translateX(-50%);
       z-index: 10000;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
       padding: 14px 28px;
       font-size: 15px;
       font-weight: 600;
@@ -75,24 +68,20 @@
       -webkit-backdrop-filter: blur(16px);
       border: 1px solid rgba(255, 255, 255, 0.3);
       border-radius: 50px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
     }
   </style>
 
   <script>
-    // Автоматическое скрытие загрузчика при успехе
+    // Скрытие загрузчика
     window.addEventListener('arjs-nft-loaded', function () {
+      console.log("NFT Маркер успешно загружен!");
       const loader = document.querySelector('.arjs-loader');
-      if (loader) {
-        loader.style.display = 'none';
-      }
+      if (loader) loader.style.display = 'none';
+      
       const startBtn = document.getElementById('start-btn');
-      if (startBtn) {
-        startBtn.style.display = 'block';
-      }
+      if (startBtn) startBtn.style.display = 'block';
     });
 
-    // Управление воспроизведением видео
     AFRAME.registerComponent('marker-video-handler', {
       init: function () {
         var marker = this.el;
@@ -100,7 +89,6 @@
         var startBtn = document.getElementById('start-btn');
         var linkBtn = document.getElementById('link-btn');
 
-        // Разблокировка видео и аудио по тапу
         startBtn.addEventListener('click', function () {
           video.muted = false;
           video.play().then(() => {
@@ -114,18 +102,12 @@
           });
         });
 
-        // Старт при наведении на картинку
         marker.addEventListener('markerFound', function () {
-          if (video) {
-            video.play().catch(e => console.log(e));
-          }
+          if (video) video.play().catch(e => console.log(e));
         });
 
-        // Пауза при потере из виду
         marker.addEventListener('markerLost', function () {
-          if (video) {
-            video.pause();
-          }
+          if (video) video.pause();
         });
       }
     });
@@ -134,25 +116,22 @@
 
 <body style="margin: 0px; overflow: hidden;">
 
-  <!-- Черный оверлей загрузки -->
   <div class="arjs-loader">
     <div>Загрузка AR-маркера, подождите...</div>
   </div>
 
-  <!-- Кнопка старта -->
   <button id="start-btn">Нажмите, чтобы начать</button>
 
-  <!-- Кнопка ссылки на квиз -->
   <a id="link-btn" href="https://ilyararzuyev.github.io/Monke1year" target="_blank">
     <span>Перейти на квиз</span>
   </a>
 
-  <!-- Сцена AR.js строго для NFT -->
+  <!-- ВАЖНО: В параметрах arjs убраны лишние флаги, мешающие NFT -->
   <a-scene
     vr-mode-ui="enabled: false;"
-    renderer="logarithmicDepthBuffer: true;"
+    renderer="logarithmicDepthBuffer: true; precision: medium;"
     embedded
-    arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;">
+    arjs="sourceType: webcam; debugUIEnabled: false;">
 
     <a-assets>
       <video
@@ -166,7 +145,6 @@
       </video>
     </a-assets>
 
-    <!-- NFT Маркер (ссылается на файлы markers/target) -->
     <a-nft
       type="nft"
       url="./markers/target"
