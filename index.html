@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>WebAR - Stories AR Effect</title>
+  <title>World Anchored WebAR</title>
 
   <!-- A-Frame 1.4.2 & MindAR 1.2.2 -->
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
@@ -16,14 +16,13 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    /* Начальный экран для разблокировки воспроизведения iOS/Android */
     #start-overlay {
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.85);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
       z-index: 9999;
@@ -37,18 +36,6 @@
       box-sizing: border-box;
     }
 
-    #start-overlay h2 {
-      margin: 0 0 10px 0;
-      font-size: 22px;
-      font-weight: 700;
-    }
-
-    #start-overlay p {
-      margin: 0 0 24px 0;
-      font-size: 15px;
-      color: rgba(255, 255, 255, 0.7);
-    }
-
     #start-btn {
       padding: 16px 36px;
       font-size: 17px;
@@ -59,14 +46,8 @@
       border-radius: 30px;
       cursor: pointer;
       box-shadow: 0 8px 24px rgba(0, 122, 255, 0.4);
-      transition: transform 0.2s ease;
     }
 
-    #start-btn:active {
-      transform: scale(0.96);
-    }
-
-    /* Плавающая кнопка квиза внизу */
     #link-btn {
       display: none;
       position: fixed;
@@ -79,39 +60,31 @@
       font-weight: 600;
       color: #ffffff;
       text-decoration: none;
-      background: rgba(0, 0, 0, 0.45);
+      background: rgba(0, 0, 0, 0.5);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
       border: 1px solid rgba(255, 255, 255, 0.25);
       border-radius: 50px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37);
     }
   </style>
 </head>
 <body>
 
-  <!-- Стартовый оверлей -->
   <div id="start-overlay">
-    <h2>Оживающая фотография</h2>
-    <p>Нажмите кнопку и наведите камеру на фото</p>
-    <button id="start-btn">Открыть AR</button>
+    <h2>Зафиксировать AR в пространстве</h2>
+    <p>Наведите камеру на фото для привязки</p>
+    <button id="start-btn">Запустить AR</button>
   </div>
 
-  <!-- Ссылка на квиз -->
   <a id="link-btn" href="https://ilyararzuyev.github.io/Monke1year" target="_blank">
     Перейти на квиз 🚀
   </a>
 
-  <!-- 
-    Параметры сглаживания:
-    - filterMinCF & filterBeta: фильтрация шума и мелких трясок камеры
-    - missTolerance: задержка (в кадрах) перед исчезновением при наклонах и уходе из кадра
-    - warmupTolerance: быстрая фиксация при первом обнаружении
-  -->
   <a-scene 
-    mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; maxTrack: 1; filterMinCF: 0.0001; filterBeta: 0.001; warmupTolerance: 3; missTolerance: 12;" 
+    id="scene"
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; maxTrack: 1; filterMinCF: 0.0001; filterBeta: 0.001;" 
     color-space="sRGB" 
-    renderer="colorManagement: true, physicallyCorrectLights; logarithmicDepthBuffer: true; precision: high; antialias: true;" 
+    renderer="colorManagement: true; logarithmicDepthBuffer: true; precision: high; antialias: true;" 
     vr-mode-ui="enabled: false" 
     device-orientation-permission-ui="enabled: false">
     
@@ -128,15 +101,10 @@
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-    <!-- AR мишень -->
+    <!-- Маркер, к которому привязано видео в момент скана -->
     <a-entity mindar-image-target="targetIndex: 0" id="target">
-      <!-- 
-        Примечание:
-        - width="1" height="1.5" задано для стандартных фото 10x15 (2:3).
-        - Если у вас фото 16:9, укажите width="1" height="0.5625".
-        - position="0 0 0.005" приподнимает видео над плоскостью, убирая мерцание под острым углом.
-      -->
       <a-video 
+        id="video-entity"
         src="#ar-video" 
         width="1" 
         height="1.5" 
@@ -151,28 +119,52 @@
     const linkBtn = document.getElementById('link-btn');
     const video = document.getElementById('ar-video');
     const target = document.getElementById('target');
+    const videoEntity = document.getElementById('video-entity');
+    const scene = document.getElementById('scene');
 
-    // Снятие блокировки Autoplay при нажатии
+    let isAnchored = false;
+
     startBtn.addEventListener('click', () => {
       video.play().then(() => {
         video.pause();
         startOverlay.style.display = 'none';
         linkBtn.style.display = 'inline-flex';
       }).catch(err => {
-        console.log("Ошибка инициализации аудио/видео:", err);
+        console.log("Ошибка запуска:", err);
         startOverlay.style.display = 'none';
         linkBtn.style.display = 'inline-flex';
       });
     });
 
-    // Воспроизведение при обнаружении фото
+    // Как только маркер пойман в первый раз:
     target.addEventListener("targetFound", () => {
+      // Запускаем видео
       video.play();
-    });
 
-    // Пауза при полной потере фото из вида
-    target.addEventListener("targetLost", () => {
-      video.pause();
+      // Если мы еще не зафиксировали позицию в пространстве:
+      if (!isAnchored) {
+        // Ждем 100мс, чтобы трекинг успел точно вычислить координаты маркера
+        setTimeout(() => {
+          const worldPosition = new THREE.Vector3();
+          const worldQuaternion = new THREE.Quaternion();
+          const worldScale = new THREE.Vector3();
+
+          // Считываем точное мировое положение видео в момент сканирования
+          videoEntity.object3D.getWorldPosition(worldPosition);
+          videoEntity.object3D.getWorldQuaternion(worldQuaternion);
+          videoEntity.object3D.getWorldScale(worldScale);
+
+          // Переносим видео из контейнера маркера прямо в сцену (отвязываем от маркера)
+          scene.object3D.add(videoEntity.object3D);
+
+          // Присваиваем фиксированные мировые координаты
+          videoEntity.object3D.position.copy(worldPosition);
+          videoEntity.object3D.quaternion.copy(worldQuaternion);
+          videoEntity.object3D.scale.copy(worldScale);
+
+          isAnchored = true;
+        }, 100);
+      }
     });
   </script>
 </body>
