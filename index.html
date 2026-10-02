@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebXR Image Tracking</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #000; }
+    #ar-button {
+      position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+      padding: 14px 28px; font-size: 16px; font-weight: bold;
+      color: #fff; background: rgba(0,0,0,0.8); border: 1px solid #fff;
+      border-radius: 30px; cursor: pointer; z-index: 999;
+    }
+  </style>
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+  <button id="ar-button">Запустить WebXR AR</button>
+
+  <script>
+    let camera, scene, renderer;
+    let videoMesh, videoElement;
+    let xrRefSpace = null;
+
+    // 1. Создаем скрытый элемент видео
+    videoElement = document.createElement('video');
+    videoElement.src = 'video.mp4';
+    videoElement.loop = true;
+    videoElement.crossOrigin = 'anonymous';
+    videoElement.playsInline = true;
+
+    async function initAR() {
+      // Подготовка Three.js сцены
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera();
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.xr.enabled = true;
+      document.body.appendChild(renderer.domElement);
+
+      // Плоскость под видео (1080x1350 px -> пропорция 1 : 1.25)
+      const texture = new THREE.VideoTexture(videoElement);
+      const geometry = new THREE.PlaneGeometry(0.1, 0.125); // Размер в метрах (10см х 12.5см)
+      const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+      videoMesh = new THREE.Mesh(geometry, material);
+      videoMesh.visible = false;
+      scene.add(videoMesh);
+
+      // Загрузка фото-мишени для ARCore
+      const imgBitmap = await fetchAndDecodeImage('./target.jpg');
+
+      // 2. Запрос WebXR сессии с функцией tracked-images
+      const session = await navigator.xr.requestSession('immersive-ar', {
+        requiredFeatures: ['tracked-images'],
+        trackedImages: [
+          {
+            image: imgBitmap,
+            widthInMeters: 0.1 // Точный физический размер распечатанного фото (10 см)
+          }
+        ]
+      });
+
+      renderer.xr.setSession(session);
+      xrRefSpace = await session.requestReferenceSpace('local');
+
+      videoElement.play();
+
+      // 3. Главный AR-цикл
+      session.requestAnimationFrame(onXRFrame);
+    }
+
+    function onXRFrame(time, frame) {
+      const session = frame.session;
+      session.requestAnimationFrame(onXRFrame);
+
+      // Получаем результаты распознавания картинок
+      const results = frame.getImageTrackingResults ? frame.getImageTrackingResults() : [];
+
+      for (const result of results) {
+        const pose = frame.getPose(result.imageSpace, xrRefSpace);
+        
+        if (pose) {
+          // Применяем точную матрицу трансформации из ARCore/ARKit
+          videoMesh.matrix.fromArray(pose.transform.matrix);
+          videoMesh.matrixAutoUpdate = false;
+          videoMesh.visible = true;
+
+          if (result.trackingState === 'tracked') {
+            // Маркер виден отчетливо
+          } else if (result.trackingState === 'emulated') {
+            // Маркер временно перекрыт, позиция прогнозируется гироскопом
+          }
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    async function fetchAndDecodeImage(url) {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return await createImageBitmap(blob);
+    }
+
+    document.getElementById('ar-button').addEventListener('click', () => {
+      if ('xr' in navigator) {
+        initAR().catch(err => alert('WebXR не поддерживается или заблокирован: ' + err.message));
+      } else {
+        alert('Ваш браузер не поддерживает WebXR API');
+      }
+    });
+  </script>
+</body>
+</html>
