@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>World Anchored WebAR</title>
+  <title>Stories AR - Image Locked WebAR</title>
 
   <!-- A-Frame 1.4.2 & MindAR 1.2.2 -->
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
@@ -16,6 +16,7 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
+    /* Оверлей старта (для разрешения аудио/видео в iOS Safari) */
     #start-overlay {
       position: fixed;
       top: 0;
@@ -48,6 +49,7 @@
       box-shadow: 0 8px 24px rgba(0, 122, 255, 0.4);
     }
 
+    /* Кнопка квиза */
     #link-btn {
       display: none;
       position: fixed;
@@ -71,18 +73,21 @@
 <body>
 
   <div id="start-overlay">
-    <h2>Зафиксировать AR в пространстве</h2>
-    <p>Наведите камеру на фото для привязки</p>
-    <button id="start-btn">Запустить AR</button>
+    <h2>Оживающая фотография</h2>
+    <p>Наведите камеру на маркер для просмотра</p>
+    <button id="start-btn">Открыть AR</button>
   </div>
 
   <a id="link-btn" href="https://ilyararzuyev.github.io/Monke1year" target="_blank">
     Перейти на квиз 🚀
   </a>
 
+  <!-- 
+    filterMinCF: 0.0001 и filterBeta: 0.001 гасят микро-тряску камеры.
+    missTolerance: 5 даёт короткий буфер при резких поворотах, чтобы видео не мерцало.
+  -->
   <a-scene 
-    id="scene"
-    mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; maxTrack: 1; filterMinCF: 0.0001; filterBeta: 0.001;" 
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; maxTrack: 1; filterMinCF: 0.0001; filterBeta: 0.001; missTolerance: 5;" 
     color-space="sRGB" 
     renderer="colorManagement: true; logarithmicDepthBuffer: true; precision: high; antialias: true;" 
     vr-mode-ui="enabled: false" 
@@ -101,8 +106,12 @@
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-    <!-- Маркер, к которому привязано видео в момент скана -->
+    <!-- Видео строго внутри таргета -->
     <a-entity mindar-image-target="targetIndex: 0" id="target">
+      <!-- 
+        width="1" height="1.5" под фото 10x15.
+        position="0 0 0.005" предотвращает мерцание поверх фото.
+      -->
       <a-video 
         id="video-entity"
         src="#ar-video" 
@@ -119,52 +128,29 @@
     const linkBtn = document.getElementById('link-btn');
     const video = document.getElementById('ar-video');
     const target = document.getElementById('target');
-    const videoEntity = document.getElementById('video-entity');
-    const scene = document.getElementById('scene');
 
-    let isAnchored = false;
-
+    // Разблокировка медиа по клику
     startBtn.addEventListener('click', () => {
       video.play().then(() => {
         video.pause();
         startOverlay.style.display = 'none';
         linkBtn.style.display = 'inline-flex';
       }).catch(err => {
-        console.log("Ошибка запуска:", err);
+        console.log("Ошибка старта:", err);
         startOverlay.style.display = 'none';
         linkBtn.style.display = 'inline-flex';
       });
     });
 
-    // Как только маркер пойман в первый раз:
+    // Пошел скан маркера -> запускаем видео
     target.addEventListener("targetFound", () => {
-      // Запускаем видео
       video.play();
+    });
 
-      // Если мы еще не зафиксировали позицию в пространстве:
-      if (!isAnchored) {
-        // Ждем 100мс, чтобы трекинг успел точно вычислить координаты маркера
-        setTimeout(() => {
-          const worldPosition = new THREE.Vector3();
-          const worldQuaternion = new THREE.Quaternion();
-          const worldScale = new THREE.Vector3();
-
-          // Считываем точное мировое положение видео в момент сканирования
-          videoEntity.object3D.getWorldPosition(worldPosition);
-          videoEntity.object3D.getWorldQuaternion(worldQuaternion);
-          videoEntity.object3D.getWorldScale(worldScale);
-
-          // Переносим видео из контейнера маркера прямо в сцену (отвязываем от маркера)
-          scene.object3D.add(videoEntity.object3D);
-
-          // Присваиваем фиксированные мировые координаты
-          videoEntity.object3D.position.copy(worldPosition);
-          videoEntity.object3D.quaternion.copy(worldQuaternion);
-          videoEntity.object3D.scale.copy(worldScale);
-
-          isAnchored = true;
-        }, 100);
-      }
+    // Маркер ушел из поля зрения -> ставим на паузу и сбрасываем на начало
+    target.addEventListener("targetLost", () => {
+      video.pause();
+      video.currentTime = 0; // Сброс кадра на старт
     });
   </script>
 </body>
