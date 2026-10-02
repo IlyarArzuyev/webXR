@@ -3,165 +3,108 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>AR.js Pattern Video</title>
+  <title>AR.js NFT Video Scan</title>
 
-  <!-- A-Frame и AR.js -->
+  <!-- Подключение A-Frame и AR.js NFT -->
   <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
-  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
 
   <style>
-    /* Кнопка первого клика (разблокировка автоплея iOS) */
-    #start-btn {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 99999;
-      padding: 16px 32px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-size: 18px;
-      font-weight: bold;
-      color: #ffffff;
-      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
-      background: rgba(0, 0, 0, 0.35);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: 30px;
-      cursor: pointer;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-      transition: all 0.3s ease;
-      -webkit-tap-highlight-color: transparent;
+    body {
+      margin: 0;
+      overflow: hidden;
     }
-
-    #start-btn:active {
-      transform: translate(-50%, -50%) scale(0.95);
-      background: rgba(0, 0, 0, 0.5);
-    }
-
-    /* Кнопка перехода на внешний сайт */
-    #link-btn {
-      display: none;
+    /* Экран загрузки NFT маркер-трекинга */
+    .arjs-loader {
+      height: 100%;
+      width: 100%;
       position: absolute;
-      bottom: 35px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 99999;
-      align-items: center;
+      top: 0;
+      left: 0;
+      background-color: rgba(0, 0, 0, 0.8);
+      z-index: 9999;
+      display: flex;
       justify-content: center;
-      gap: 10px;
-      padding: 14px 28px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-size: 15px;
-      font-weight: 600;
-      letter-spacing: 0.3px;
-      color: #ffffff;
-      text-decoration: none;
-      white-space: nowrap;
-      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
-      background: rgba(0, 0, 0, 0.35);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: 50px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    #link-btn svg {
-      width: 18px;
-      height: 18px;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2.2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
+      align-items: center;
+      color: white;
+      font-family: sans-serif;
+      font-size: 1.2rem;
     }
   </style>
 
   <script>
-    AFRAME.registerComponent('ar-video-handler', {
+    // Скрипт автопроигрывания видео при потере/нахождении маркера
+    AFRAME.registerComponent('marker-video-handler', {
       init: function () {
-        const marker = this.el;
-        const video = document.querySelector('#ar-video');
-        const startBtn = document.getElementById('start-btn');
-        const linkBtn = document.getElementById('link-btn');
+        var marker = this.el;
+        var video = document.querySelector('#ar-video');
 
-        // Активация видео при клике на запуск
-        startBtn.addEventListener('click', () => {
-          video.muted = false; // Снимаем заглушку звука
-          video.play().then(() => {
+        // Воспроизведение видео при наведении камеры на изображение
+        marker.addEventListener('markerFound', function () {
+          if (video) {
+            video.play();
+          }
+        });
+
+        // Пауза при потере маркера из поля зрения
+        marker.addEventListener('markerLost', function () {
+          if (video) {
             video.pause();
-            startBtn.style.display = 'none';
-            linkBtn.style.display = 'inline-flex';
-          }).catch(err => {
-            console.error("Ошибка инициализации аудио/видео:", err);
-            startBtn.style.display = 'none';
-            linkBtn.style.display = 'inline-flex';
-          });
-        });
-
-        // События обнаружения Pattern-маркера
-        marker.addEventListener('markerFound', () => {
-          video.play().catch(err => console.log("Ошибка воспроизведения:", err));
-        });
-
-        marker.addEventListener('markerLost', () => {
-          video.pause();
+          }
         });
       }
     });
   </script>
 </head>
 
-<body style="margin: 0; overflow: hidden;">
-
-  <!-- Кнопка старта -->
-  <button id="start-btn">Нажмите, чтобы начать</button>
-
-  <!-- Кнопка перехода на квиз -->
-  <a id="link-btn" href="https://ilyararzuyev.github.io/Monke1year" target="_blank">
-    <span>Перейти на квиз</span>
-    <svg viewBox="0 0 24 24">
-      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-      <polyline points="15 3 21 3 21 9"></polyline>
-      <line x1="10" y1="14" x2="21" y2="3"></line>
-    </svg>
-  </a>
+<body style="margin: 0px; overflow: hidden;">
+  <!-- Индикатор загрузки генерации дескрипторов NFT -->
+  <div class="arjs-loader">
+    <div>Загрузка AR-маркера, подождите...</div>
+  </div>
 
   <a-scene
+    vr-mode-ui="enabled: false;"
+    renderer="logarithmicDepthBuffer: true;"
     embedded
-    arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
-    vr-mode-ui="enabled: false">
+    arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;">
 
+    <!-- Ресурсы (видео) -->
     <a-assets>
       <video
         id="ar-video"
         src="video.mp4"
         preload="auto"
-        loop="true"
+        loop
         crossorigin="anonymous"
-        playsinline
-        webkit-playsinline>
+        webkit-playsinline
+        playsinline>
       </video>
     </a-assets>
 
-    <!-- Маркер AR.js (замените url на путь к вашему .patt файлу) -->
-    <a-marker type="pattern" url="./pattern-marker.patt" ar-video-handler>
-      <!-- Видео накладывается на маркер: поворот -90 по X кладёт его плашмя на карточку -->
+    <!-- NFT-маркер. Указываем путь БЕЗ расширения (.iset/.fset/.fset3) -->
+    <a-nft
+      type="nft"
+      url="./markers/target"
+      smooth="true"
+      smoothCount="10"
+      smoothTolerance="0.01"
+      smoothThreshold="5"
+      marker-video-handler>
+
+      <!-- Контент поверх маркера (плоскость с видео) -->
       <a-video
         src="#ar-video"
-        position="0 0 0"
-        rotation="-90 0 0"
-        width="1.2"
-        height="1.5"
-        material="shader: flat; src: #ar-video;">
+        width="150"
+        height="100"
+        position="50 0 -100"
+        rotation="-90 0 0">
       </a-video>
-    </a-marker>
 
+    </a-nft>
+
+    <!-- Камера сцены -->
     <a-entity camera></a-entity>
   </a-scene>
-
 </body>
 </html>
