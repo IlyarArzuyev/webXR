@@ -14,6 +14,7 @@
       margin: 0;
       overflow: hidden;
     }
+
     /* Экран загрузки NFT маркер-трекинга */
     .arjs-loader {
       height: 100%;
@@ -21,32 +22,81 @@
       position: absolute;
       top: 0;
       left: 0;
-      background-color: rgba(0, 0, 0, 0.8);
+      background-color: rgba(0, 0, 0, 0.85);
       z-index: 9999;
       display: flex;
+      flex-direction: column;
       justify-content: center;
       align-items: center;
       color: white;
-      font-family: sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       font-size: 1.2rem;
+    }
+
+    /* Кнопка активации аудио/видео */
+    #start-btn {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10000;
+      padding: 16px 32px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 18px;
+      font-weight: bold;
+      color: #ffffff;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 30px;
+      cursor: pointer;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
     }
   </style>
 
   <script>
-    // Скрипт автопроигрывания видео при потере/нахождении маркера
+    // Скрытие загрузчика после полного анализа файлов маркера
+    window.addEventListener('arjs-nft-loaded', function () {
+      const loader = document.querySelector('.arjs-loader');
+      if (loader) {
+        loader.style.display = 'none';
+      }
+      // Показываем кнопку для разблокировки звука
+      const startBtn = document.getElementById('start-btn');
+      if (startBtn) {
+        startBtn.style.display = 'block';
+      }
+    });
+
+    // Компонент управления видео при сканировании
     AFRAME.registerComponent('marker-video-handler', {
       init: function () {
         var marker = this.el;
         var video = document.querySelector('#ar-video');
+        var startBtn = document.getElementById('start-btn');
 
-        // Воспроизведение видео при наведении камеры на изображение
+        // Клик по кнопке разблокирует автоплей с звуком
+        startBtn.addEventListener('click', function () {
+          video.muted = false;
+          video.play().then(() => {
+            video.pause();
+            startBtn.style.display = 'none';
+          }).catch(err => {
+            console.log("Ошибка воспроизведения:", err);
+            startBtn.style.display = 'none';
+          });
+        });
+
+        // Воспроизведение при распознавании картинки
         marker.addEventListener('markerFound', function () {
           if (video) {
-            video.play();
+            video.play().catch(e => console.log(e));
           }
         });
 
-        // Пауза при потере маркера из поля зрения
+        // Пауза при потере маркера
         marker.addEventListener('markerLost', function () {
           if (video) {
             video.pause();
@@ -58,10 +108,14 @@
 </head>
 
 <body style="margin: 0px; overflow: hidden;">
-  <!-- Индикатор загрузки генерации дескрипторов NFT -->
+
+  <!-- Черный оверлей загрузки -->
   <div class="arjs-loader">
     <div>Загрузка AR-маркера, подождите...</div>
   </div>
+
+  <!-- Кнопка старта -->
+  <button id="start-btn">Нажмите, чтобы начать</button>
 
   <a-scene
     vr-mode-ui="enabled: false;"
@@ -69,7 +123,6 @@
     embedded
     arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;">
 
-    <!-- Ресурсы (видео) -->
     <a-assets>
       <video
         id="ar-video"
@@ -82,7 +135,7 @@
       </video>
     </a-assets>
 
-    <!-- NFT-маркер. Указываем путь БЕЗ расширения (.iset/.fset/.fset3) -->
+    <!-- Относительный путь к файлам маркера target -->
     <a-nft
       type="nft"
       url="./markers/target"
@@ -92,7 +145,6 @@
       smoothThreshold="5"
       marker-video-handler>
 
-      <!-- Контент поверх маркера (плоскость с видео) -->
       <a-video
         src="#ar-video"
         width="150"
@@ -103,7 +155,6 @@
 
     </a-nft>
 
-    <!-- Камера сцены -->
     <a-entity camera></a-entity>
   </a-scene>
 </body>
